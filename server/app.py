@@ -4,7 +4,7 @@ from typing import Optional, Dict, Any
 import sys
 import os
 
-# These are now relative imports because they are in the same folder
+# We use relative imports (the dots) because the files are in the same folder now
 from .models import IntelliNotifyAction, IntelliNotifyObservation, IntelliNotifyState
 from .environment import IntelliNotifyEnv
 from .task_definitions import TASKS
@@ -44,7 +44,7 @@ def list_tasks():
 
 def main():
     import uvicorn
-    # This is the exact string the grader wants to call
+    # This must match your directory structure
     uvicorn.run("server.app:app", host="0.0.0.0", port=7860)
 
 if __name__ == "__main__":
