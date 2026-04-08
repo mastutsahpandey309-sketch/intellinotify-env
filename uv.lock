@@ -9,6 +9,8 @@ dependencies = [
     { name = "fastapi" },
     { name = "openenv-core" },
     { name = "uvicorn" },
+    { name = "openai" },
+    { name = "pydantic" },
 ]
 
 [[package]]
