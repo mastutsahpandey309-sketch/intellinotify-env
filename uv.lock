@@ -10,3 +10,8 @@ dependencies = [
     { name = "openenv-core" },
     { name = "uvicorn" },
 ]
+
+[[package]]
+name = "openenv-core"
+version = "0.2.0"
+source = { registry = "https://pypi.org/simple" }
