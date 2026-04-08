@@ -1,51 +1,18 @@
-from fastapi import FastAPI, HTTPException
-from pydantic import BaseModel
-from typing import Optional, Dict, Any
-import sys
-import os
+from openenv.core.env_server.http_server import create_app
+from .models import IntelliNotifyAction, IntelliNotifyObservation
+from .environment import IntelliNotifyEnvironment
 
-# We use relative imports (the dots) because the files are in the same folder now
-from .models import IntelliNotifyAction, IntelliNotifyObservation, IntelliNotifyState
-from .environment import IntelliNotifyEnv
-from .task_definitions import TASKS
+app = create_app(
+    IntelliNotifyEnvironment,
+    IntelliNotifyAction,
+    IntelliNotifyObservation,
+    env_name="intellinotify",
+    max_concurrent_envs=1,
+)
 
-app = FastAPI(title="IntelliNotify OpenEnv Server")
-env = IntelliNotifyEnv()
-
-class ResetRequest(BaseModel):
-    task: Optional[str] = None
-
-@app.get("/health")
-def health_check():
-    return {"status": "ok"}
-
-@app.post("/reset", response_model=IntelliNotifyObservation)
-def reset_environment(req: Optional[ResetRequest] = None):
-    try:
-        task_id = req.task if req and req.task else None
-        return env.reset(task_id=task_id)
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
-@app.post("/step")
-def step_environment(action: IntelliNotifyAction):
-    try:
-        return env.step(action)
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
-@app.get("/state", response_model=IntelliNotifyState)
-def get_state():
-    return env.state()
-
-@app.get("/tasks")
-def list_tasks():
-    return {"tasks": list(TASKS.keys())}
-
-def main():
+def main(host: str = "0.0.0.0", port: int = 7860):
     import uvicorn
-    # This must match your directory structure
-    uvicorn.run("server.app:app", host="0.0.0.0", port=7860)
+    uvicorn.run(app, host=host, port=port)
 
 if __name__ == "__main__":
     main()
