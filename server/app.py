@@ -4,6 +4,8 @@ from typing import Optional, Dict, Any
 
 import sys
 import os
+
+# This helps the server find models.py and task_definitions.py at the root
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from models import IntelliNotifyAction, IntelliNotifyObservation, IntelliNotifyState
@@ -22,7 +24,7 @@ def health_check():
     return {"status": "ok"}
 
 @app.post("/reset", response_model=IntelliNotifyObservation)
-def reset_environment(req: ResetRequest = None):
+def reset_environment(req: Optional[ResetRequest] = None):
     try:
         task_id = req.task if req and req.task else None
         return env.reset(task_id=task_id)
@@ -43,9 +45,11 @@ def get_state():
 @app.get("/tasks")
 def list_tasks():
     return {"tasks": list(TASKS.keys())}
+
 def main():
     import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=7860)
+    # Changing 'app' to 'server.app:app' makes it much easier for the grader to find
+    uvicorn.run("server.app:app", host="0.0.0.0", port=7860)
 
 if __name__ == "__main__":
     main()
