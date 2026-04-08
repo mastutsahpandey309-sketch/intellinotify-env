@@ -9,7 +9,6 @@ tags:
   - "productivity"
   - "real-world"
 
-# The entrypoint for our FastAPI server
 entrypoint: "server.app:app"
 
 tasks:
@@ -17,7 +16,7 @@ tasks:
     name: "Task 1: The Blatant Scam"
     description: "Identify an obvious scam SMS mixed in with normal notifications."
     difficulty: "easy"
-    
+
   - id: "task_2_medium_productivity_vs_security"
     name: "Task 2: Productivity vs. Security"
     description: "Prioritize a deceptive phishing link over an urgent work email."
@@ -26,4 +25,14 @@ tasks:
   - id: "task_3_hard_multi_vector"
     name: "Task 3: Multi-Vector Context Attack"
     description: "Synthesize context from clipboard data and an incoming OTP to identify a sophisticated financial attack."
+    difficulty: "hard"
+
+  - id: "task_4_medium_fake_bank_alert"
+    name: "Task 4: Fake Bank Alert"
+    description: "Identify a social engineering SMS impersonating a bank and a follow-up OTP share scam."
+    difficulty: "medium"
+
+  - id: "task_5_hard_malware_install"
+    name: "Task 5: Malware Install Trap"
+    description: "Detect a malicious APK install request and an accessibility permission grab disguised as a streaming app."
     difficulty: "hard"
