@@ -1,0 +1,29 @@
+version: "1.0"
+name: "IntelliNotify"
+description: "A digital wellbeing and security environment where an agent acts as a mobile OS context manager, triaging a queue of notifications to identify critical threats (like phishing) amidst benign distractions."
+maintainers:
+  - "IntelliNotify Team"
+tags:
+  - "security"
+  - "classification"
+  - "productivity"
+  - "real-world"
+
+# The entrypoint for our FastAPI server
+entrypoint: "server.app:app"
+
+tasks:
+  - id: "task_1_easy_blatant_scam"
+    name: "Task 1: The Blatant Scam"
+    description: "Identify an obvious scam SMS mixed in with normal notifications."
+    difficulty: "easy"
+    
+  - id: "task_2_medium_productivity_vs_security"
+    name: "Task 2: Productivity vs. Security"
+    description: "Prioritize a deceptive phishing link over an urgent work email."
+    difficulty: "medium"
+
+  - id: "task_3_hard_multi_vector"
+    name: "Task 3: Multi-Vector Context Attack"
+    description: "Synthesize context from clipboard data and an incoming OTP to identify a sophisticated financial attack."
+    difficulty: "hard"
