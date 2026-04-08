@@ -1,16 +1,13 @@
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 from typing import Optional, Dict, Any
-
 import sys
 import os
 
-# Ensures the server can find models.py and task_definitions.py at the root
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-
-from models import IntelliNotifyAction, IntelliNotifyObservation, IntelliNotifyState
-from server.environment import IntelliNotifyEnv
-from task_definitions import TASKS
+# These are now relative imports because they are in the same folder
+from .models import IntelliNotifyAction, IntelliNotifyObservation, IntelliNotifyState
+from .environment import IntelliNotifyEnv
+from .task_definitions import TASKS
 
 app = FastAPI(title="IntelliNotify OpenEnv Server")
 env = IntelliNotifyEnv()
@@ -47,7 +44,7 @@ def list_tasks():
 
 def main():
     import uvicorn
-    # Using the string path helps the grader find the module correctly
+    # This is the exact string the grader wants to call
     uvicorn.run("server.app:app", host="0.0.0.0", port=7860)
 
 if __name__ == "__main__":
