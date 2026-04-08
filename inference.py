@@ -105,7 +105,7 @@ async def main() -> None:
     log_start(task=TASK_NAME, env=BENCHMARK, model=MODEL_NAME)
     
     try:
-        async with httpx.AsyncClient() as http_client:
+        async with httpx.AsyncClient(timeout=30.0) as http_client:
             # 1. Reset Environment
             reset_resp = await http_client.post(f"{ENV_BASE_URL}/reset", json={"task": TASK_NAME})
             reset_resp.raise_for_status()
