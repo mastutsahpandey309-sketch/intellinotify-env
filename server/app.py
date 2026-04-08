@@ -5,7 +5,7 @@ from typing import Optional, Dict, Any
 import sys
 import os
 
-# This helps the server find models.py and task_definitions.py at the root
+# Ensures models and tasks can be found regardless of how the script is run
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from models import IntelliNotifyAction, IntelliNotifyObservation, IntelliNotifyState
@@ -48,7 +48,7 @@ def list_tasks():
 
 def main():
     import uvicorn
-    # Changing 'app' to 'server.app:app' makes it much easier for the grader to find
+    # Points exactly to this file and this app instance
     uvicorn.run("server.app:app", host="0.0.0.0", port=7860)
 
 if __name__ == "__main__":
