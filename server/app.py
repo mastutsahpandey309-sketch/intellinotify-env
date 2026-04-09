@@ -1,33 +1,22 @@
 """
-IntelliNotify OpenEnv Server.
-
-Implements the full OpenEnv HTTP contract:
-  GET  /health    → {"status": "healthy"}
-  GET  /metadata  → name + description
-  GET  /schema    → action / observation / state schemas
-  GET  /state     → current internal state
-  POST /mcp       → JSON-RPC 2.0 (required by validator)
-  POST /reset     → start episode, return observation
-  POST /step      → grade action, return reward + done
+IntelliNotify OpenEnv Server — full OpenEnv HTTP contract implementation.
 """
 
 from fastapi import FastAPI
 from pydantic import BaseModel
-from typing import Optional, Any, Dict
+from typing import Optional, Dict, Any, List
 
 from .models import IntelliNotifyAction, IntelliNotifyObservation
 from .environment import IntelliNotifyEnvironment
+from .task_definitions import TASKS
 
-app = FastAPI(
-    title="IntelliNotify OpenEnv",
-    version="1.0.0",
-)
+app = FastAPI(title="IntelliNotify OpenEnv", version="1.0.0")
 
-# Single shared environment — state preserved between /reset and /step
+# Single shared env instance — preserves state between /reset and /step
 _env = IntelliNotifyEnvironment()
 
 
-# ── Required OpenEnv endpoints ─────────────────────────────────────
+# ── OpenEnv required endpoints ─────────────────────────────────────
 
 @app.get("/health")
 def health():
@@ -57,7 +46,7 @@ def schema():
                 "step_count": {"type": "integer"},
                 "current_task_id": {"type": "string"},
                 "done": {"type": "boolean"},
-            }
+            },
         },
     }
 
@@ -74,26 +63,49 @@ def state():
 
 
 @app.post("/mcp")
-def mcp(body: Dict[str, Any] = {}):
-    """Minimal JSON-RPC 2.0 endpoint required by OpenEnv validator."""
+async def mcp(request: Dict[str, Any] = {}):
+    """Minimal JSON-RPC 2.0 stub required by OpenEnv validator."""
     return {
         "jsonrpc": "2.0",
         "result": {"tools": []},
-        "id": body.get("id", 1),
+        "id": request.get("id", 1),
     }
 
 
-# ── Environment control endpoints ──────────────────────────────────
+@app.get("/tasks")
+def list_tasks():
+    """Enumerate all tasks with grader metadata."""
+    result = []
+    for task_id, task in TASKS.items():
+        result.append({
+            "id": task_id,
+            "name": task_id.replace("_", " ").title(),
+            "difficulty": (
+                "easy" if "easy" in task_id
+                else "hard" if "hard" in task_id
+                else "medium"
+            ),
+            "has_grader": True,
+            "grader_type": "deterministic",
+            "num_events": len(task.events),
+        })
+    return {"tasks": result}
+
+
+# ── Environment control ────────────────────────────────────────────
 
 class ResetRequest(BaseModel):
     task: Optional[str] = None
+    task_id: Optional[str] = None   # accept both field names
     seed: Optional[int] = None
     episode_id: Optional[str] = None
 
 
 @app.post("/reset")
 def reset(req: Optional[ResetRequest] = None):
-    task_id = req.task if req else None
+    task_id = None
+    if req:
+        task_id = req.task or req.task_id
     obs = _env.reset(task=task_id)
     return {
         "observation": {
@@ -104,6 +116,7 @@ def reset(req: Optional[ResetRequest] = None):
         },
         "reward": obs.reward,
         "done": obs.done,
+        "info": {"task_id": _env._current_task_id},
     }
 
 
@@ -119,13 +132,11 @@ def step(action: IntelliNotifyAction):
         },
         "reward": obs.reward,
         "done": obs.done,
+        "info": {
+            "feedback": obs.last_action_feedback,
+            "task_id": _env._current_task_id,
+        },
     }
-
-
-@app.get("/tasks")
-def list_tasks():
-    from .task_definitions import TASKS
-    return {"tasks": list(TASKS.keys())}
 
 
 # ── Entry point ────────────────────────────────────────────────────
