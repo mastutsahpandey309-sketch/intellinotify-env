@@ -1,16 +1,21 @@
-"""IntelliNotify Environment Client."""
+"""IntelliNotify environment HTTP client."""
 from typing import Dict, Optional
 import httpx
 
+
 class IntelliNotifyEnv:
-    """Simple HTTP client for the IntelliNotify environment."""
+    """HTTP client for the IntelliNotify OpenEnv environment."""
 
     def __init__(self, base_url: str = "http://localhost:7860"):
         self.base_url = base_url.rstrip("/")
         self._client = httpx.Client(timeout=30.0)
 
-    def reset(self, task: Optional[str] = None):
-        body = {"task": task} if task else {}
+    def reset(self, task_id: Optional[str] = None, task: Optional[str] = None):
+        body = {}
+        if task_id:
+            body["task_id"] = task_id
+        elif task:
+            body["task"] = task
         r = self._client.post(f"{self.base_url}/reset", json=body)
         r.raise_for_status()
         return r.json()
@@ -22,11 +27,6 @@ class IntelliNotifyEnv:
 
     def state(self):
         r = self._client.get(f"{self.base_url}/state")
-        r.raise_for_status()
-        return r.json()
-
-    def tasks(self):
-        r = self._client.get(f"{self.base_url}/tasks")
         r.raise_for_status()
         return r.json()
 
