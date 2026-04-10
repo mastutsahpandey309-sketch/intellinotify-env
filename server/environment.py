@@ -1,48 +1,36 @@
-"""IntelliNotify environment - no openenv dependency required."""
 from uuid import uuid4
-from typing import Optional, Any
-from .models import IntelliNotifyAction, IntelliNotifyObservation
 from .task_definitions import get_task, grade_action, TASKS
-
-
-class _State:
-    def __init__(self, episode_id: str):
-        self.episode_id = episode_id
-        self.step_count = 0
-
+# Note the relative import for models inside the server folder if needed, 
+# but here we point to the root models
+import sys
+import os
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from models import IntelliNotifyObservation
 
 class IntelliNotifyEnvironment:
-    """IntelliNotify: mobile OS notification security benchmark."""
-
     def __init__(self):
-        self._state = _State(str(uuid4()))
         self._current_task_id = "task_1_easy_blatant_scam"
         self._task = None
         self._done = False
+        self._step_count = 0
 
-    def reset(self, task=None, task_id=None, seed=None, episode_id=None, **kwargs):
-        chosen = task_id or task
-        if chosen and chosen in TASKS:
-            self._current_task_id = chosen
+    def reset(self, task=None, **kwargs):
+        if task in TASKS:
+            self._current_task_id = task
         self._task = get_task(self._current_task_id)
         self._done = False
-        self._state = _State(episode_id or str(uuid4()))
+        self._step_count = 0
         return IntelliNotifyObservation(
-            step_number=1,
-            total_steps=1,
+            step_number=0,
+            total_steps=5,
             events=self._task.events,
-            last_action_feedback=None,
-            reward=None,
-            done=False,
+            last_action_feedback="Reset successful.",
+            reward=0.0,
+            done=False
         )
 
-    def step(self, action: IntelliNotifyAction):
-        if self._task is None or self._done:
-            return IntelliNotifyObservation(
-                step_number=1, total_steps=1, events=[],
-                last_action_feedback="Call /reset first.",
-                reward=0.05, done=True,
-            )
+    def step(self, action):
+        self._step_count += 1
         reward_obj = grade_action(
             action=action,
             expected_priority_id=self._task.expected_id,
@@ -50,26 +38,11 @@ class IntelliNotifyEnvironment:
             expected_threat_type=self._task.expected_type,
         )
         self._done = True
-        self._state.step_count += 1
         return IntelliNotifyObservation(
-            step_number=1, total_steps=1, events=[],
+            step_number=self._step_count,
+            total_steps=5,
+            events=[],
             last_action_feedback=reward_obj.reasoning,
             reward=reward_obj.score,
-            done=True,
+            done=True
         )
-
-    def state(self):
-        return {
-            "episode_id": self._state.episode_id,
-            "step_count": self._state.step_count,
-            "current_task_id": self._current_task_id,
-            "done": self._done,
-        }
-
-    def get_metadata(self):
-        return {
-            "name": "IntelliNotify",
-            "description": "A mobile OS notification security environment where an agent triages phone notifications to identify threats like phishing, financial fraud, and malware.",
-            "version": "0.1.0",
-            "author": "IntelliNotify Team",
-        }

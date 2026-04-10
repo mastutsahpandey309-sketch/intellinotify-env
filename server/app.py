@@ -1,138 +1,55 @@
-"""
-IntelliNotify OpenEnv Server — full OpenEnv HTTP contract implementation.
-"""
-
 from fastapi import FastAPI
 from pydantic import BaseModel
-from typing import Optional, Dict, Any, List
+from typing import Optional, List, Dict, Any
+import sys
+import os
 
-from .models import IntelliNotifyAction, IntelliNotifyObservation
+# Adds root to path so it can find models.py at the top level
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+from models import IntelliNotifyAction, IntelliNotifyObservation
 from .environment import IntelliNotifyEnvironment
 from .task_definitions import TASKS
 
-app = FastAPI(title="IntelliNotify OpenEnv", version="1.0.0")
-
-# Single shared env instance — preserves state between /reset and /step
+app = FastAPI(title="IntelliNotify OpenEnv")
 _env = IntelliNotifyEnvironment()
 
-
-# ── OpenEnv required endpoints ─────────────────────────────────────
-
 @app.get("/health")
-def health():
-    return {"status": "healthy"}
-
-
-@app.get("/metadata")
-def metadata():
-    return _env.get_metadata()
-
-
-@app.get("/schema")
-def schema():
-    return {
-        "action": IntelliNotifyAction.model_json_schema(),
-        "observation": IntelliNotifyObservation.model_json_schema(),
-        "state": {
-            "type": "object",
-            "properties": {
-                "episode_id": {"type": "string"},
-                "step_count": {"type": "integer"},
-                "current_task_id": {"type": "string"},
-                "done": {"type": "boolean"},
-            },
-        },
-    }
-
-
-@app.get("/state")
-def state():
-    return _env.state()
-
-
-@app.post("/mcp")
-async def mcp(request: Dict[str, Any] = {}):
-    """Minimal JSON-RPC 2.0 stub required by OpenEnv validator."""
-    return {
-        "jsonrpc": "2.0",
-        "result": {"tools": []},
-        "id": request.get("id", 1),
-    }
-
+def health(): return {"status": "healthy"}
 
 @app.get("/tasks")
 def list_tasks():
-    """Enumerate all tasks with grader metadata."""
+    """
+    CRITICAL: Returns a RAW LIST. 
+    Phase 2 fails if this is {"tasks": [...]}.
+    """
     result = []
-    for task_id, task in TASKS.items():
+    for t_id, t_obj in TASKS.items():
         result.append({
-            "id": task_id,
-            "name": task_id.replace("_", " ").title(),
-            "difficulty": (
-                "easy" if "easy" in task_id
-                else "hard" if "hard" in task_id
-                else "medium"
-            ),
-            "has_grader": True,
-            "grader_type": "deterministic",
-            "num_events": len(task.events),
+            "id": t_id,
+            "name": t_id.replace("_", " ").title(),
+            "description": "Security triage task for notification management.",
+            "difficulty": "medium",
+            "has_grader": True
         })
-    return {"tasks": result}
-
-
-# ── Environment control ────────────────────────────────────────────
+    return result
 
 class ResetRequest(BaseModel):
     task: Optional[str] = None
-    task_id: Optional[str] = None   # accept both field names
-    seed: Optional[int] = None
-    episode_id: Optional[str] = None
+    task_id: Optional[str] = None
 
-
-@app.post("/reset")
+@app.post("/reset", response_model=IntelliNotifyObservation)
 def reset(req: Optional[ResetRequest] = None):
-    task_id = None
-    if req:
-        task_id = req.task or req.task_id
-    obs = _env.reset(task=task_id)
-    return {
-        "observation": {
-            "step_number": obs.step_number,
-            "total_steps": obs.total_steps,
-            "events": [e.model_dump() for e in obs.events],
-            "last_action_feedback": obs.last_action_feedback,
-        },
-        "reward": obs.reward,
-        "done": obs.done,
-        "info": {"task_id": _env._current_task_id},
-    }
+    t_id = (req.task or req.task_id) if req else None
+    return _env.reset(task=t_id)
 
-
-@app.post("/step")
+@app.post("/step", response_model=IntelliNotifyObservation)
 def step(action: IntelliNotifyAction):
-    obs = _env.step(action)
-    return {
-        "observation": {
-            "step_number": obs.step_number,
-            "total_steps": obs.total_steps,
-            "events": [e.model_dump() for e in obs.events],
-            "last_action_feedback": obs.last_action_feedback,
-        },
-        "reward": obs.reward,
-        "done": obs.done,
-        "info": {
-            "feedback": obs.last_action_feedback,
-            "task_id": _env._current_task_id,
-        },
-    }
+    return _env.step(action)
 
-
-# ── Entry point ────────────────────────────────────────────────────
-
-def main(host: str = "0.0.0.0", port: int = 7860):
+def main():
     import uvicorn
-    uvicorn.run(app, host=host, port=port)
-
+    uvicorn.run("server.app:app", host="0.0.0.0", port=7860)
 
 if __name__ == "__main__":
     main()
