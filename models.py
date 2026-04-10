@@ -1,7 +1,5 @@
-"""IntelliNotify root models - standalone definitions for client use."""
 from typing import List, Literal, Optional
 from pydantic import BaseModel, Field
-
 
 class PhoneEvent(BaseModel):
     id: int
@@ -9,13 +7,11 @@ class PhoneEvent(BaseModel):
     text: str
     is_clipboard: bool = False
 
-
 class IntelliNotifyAction(BaseModel):
     highest_priority_id: int
     threat_level: Literal["none", "low", "medium", "high", "critical"]
     threat_type: Literal["none", "phishing", "malware", "distraction", "spam", "financial_fraud"]
     two_line_advice: str
-
 
 class IntelliNotifyObservation(BaseModel):
     step_number: int = 0
