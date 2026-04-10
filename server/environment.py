@@ -1,8 +1,16 @@
 """IntelliNotify environment - no openenv dependency required."""
+import sys
+import os
 from uuid import uuid4
 from typing import Optional, Any
-# These imports rely on the functions existing in task_definitions.py
-from .models import IntelliNotifyAction, IntelliNotifyObservation
+
+# 1. PATH HACK: Tell Python to look one folder up (in the root)
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+# 2. NO DOT: Import directly from the root models.py
+from models import IntelliNotifyAction, IntelliNotifyObservation
+
+# 3. WITH DOT: Import from the local task_definitions.py
 from .task_definitions import get_task, grade_action, TASKS
 
 class _State:
@@ -11,6 +19,8 @@ class _State:
         self.step_count = 0
 
 class IntelliNotifyEnvironment:
+    """IntelliNotify: mobile OS notification security benchmark."""
+
     def __init__(self):
         self._state = _State(str(uuid4()))
         self._current_task_id = "task_1_easy_blatant_scam"
@@ -54,3 +64,19 @@ class IntelliNotifyEnvironment:
             reward=reward_obj.score,
             done=True,
         )
+
+    def state(self):
+        return {
+            "episode_id": self._state.episode_id,
+            "step_count": self._state.step_count,
+            "current_task_id": self._current_task_id,
+            "done": self._done,
+        }
+
+    def get_metadata(self):
+        return {
+            "name": "IntelliNotify",
+            "description": "A mobile OS notification security environment where an agent triages phone notifications to identify threats.",
+            "version": "0.1.0",
+            "author": "IntelliNotify Team",
+        }
