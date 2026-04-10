@@ -25,13 +25,7 @@ def health():
 
 @app.get("/metadata")
 def metadata():
-    meta = _env.get_metadata()
-    return {
-        "name": meta.name,
-        "description": meta.description,
-        "version": meta.version,
-        "author": meta.author,
-    }
+    return _env.get_metadata()
 
 
 @app.get("/schema")
@@ -53,13 +47,7 @@ def schema():
 
 @app.get("/state")
 def state():
-    s = _env.state
-    return {
-        "episode_id": s.episode_id,
-        "step_count": s.step_count,
-        "current_task_id": _env._current_task_id,
-        "done": _env._done,
-    }
+    return _env.state()
 
 
 @app.post("/mcp")
