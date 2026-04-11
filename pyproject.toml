@@ -1,21 +1,22 @@
 [build-system]
-requires = ["setuptools>=61.0", "wheel"]
+requires = ["setuptools>=45", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "intellinotify-env"
+name = "openenv-intellinotify-env"
 version = "0.1.0"
-description = "IntelliNotify OpenEnv security environment"
-readme = "README.md"
+description = "IntelliNotify security notification triage environment"
 requires-python = ">=3.10"
 dependencies = [
-    "fastapi>=0.104.0",
+    "openenv-core[core]>=0.2.2",
     "uvicorn>=0.24.0",
-    "pydantic>=2.0.0",
-    "openai>=1.0.0",
-    "httpx>=0.24.0",
-    "openenv-core>=0.2.0",
+    "fastapi>=0.104.0",
 ]
 
 [project.scripts]
-server = "app:main"
+server = "intellinotify_env.server.app:main"
+
+[tool.setuptools]
+include-package-data = true
+packages = ["intellinotify_env", "intellinotify_env.server"]
+package-dir = { "intellinotify_env" = ".", "intellinotify_env.server" = "server" }
