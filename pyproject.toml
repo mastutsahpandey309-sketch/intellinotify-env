@@ -13,7 +13,7 @@ dependencies = [
 ]
 
 [project.scripts]
-server = "server.app:main"
+server = "app:app"
 
 [tool.setuptools]
-packages = ["server"]
+packages = ["schema", "tasks", "graders"]
