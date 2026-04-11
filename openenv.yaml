@@ -2,7 +2,7 @@ version: "1.0"
 name: "intellinotify"
 type: "space"
 runtime: "fastapi"
-app: "server.app:app"
+app: "app:app"
 port: 7860
 
 description: "AI Agent Context Manager for notification security."
