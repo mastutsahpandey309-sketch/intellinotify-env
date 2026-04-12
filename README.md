@@ -1,96 +1,48 @@
 ---
-title: ATMAN
-emoji: 🧠
-colorFrom: indigo
-colorTo: purple
+title: IntelliNotify
+emoji: 🔔
+colorFrom: red
+colorTo: yellow
 sdk: docker
 pinned: false
 tags:
   - openenv
 ---
 
-# ATMAN — Context-Aware Mobile OS Agent Benchmark
+# IntelliNotify — OpenEnv Security Environment
 
-ATMAN extends IntelliNotify with full device/user/temporal context, multi-step
-interaction, memory store/retrieve, and goal-alignment grading.
+Mobile OS notification security benchmark. Agent triages phone events to identify threats **and** schedules relevant-but-deferred events for background processing.
 
-## Tasks (8 total)
+## Tasks (11 total, easy → hard)
 
-| ID | Task | Steps | Key Skill |
-|----|------|-------|-----------|
-| task_1_security_goal_alignment | Phishing SMS while user does legitimate task | 1 | Security + Goal |
-| task_2_navigation_stuck | User looping on failed payment screen | 1 | Navigation |
-| task_3_memory_store | Save travel PNR details from SMS | 2 | Memory store |
-| task_4_ask_then_classify | Truncated link — query then classify | 2 | Ask → classify |
-| task_5_focus_distraction | Distraction during deadline focus mode | 1 | Goal conflict |
-| task_6_financial_fraud_complex | OTP + clipboard + in-meeting fraud | 2 | Multi-context |
-| task_7_memory_retrieve_and_act | Use stored domain to catch phishing | 2 | Memory retrieve |
-| task_8_no_threat_baseline | All-benign — false-positive guard | 1 | None-threat |
+| ID | Task | Difficulty |
+|----|------|------------|
+| task_1_easy_blatant_scam | Obvious prize scam SMS | Easy |
+| task_2_medium_productivity_vs_security | Phishing vs real work urgency | Medium |
+| task_3_hard_multi_vector | Clipboard hijack + OTP + browser | Hard |
+| task_4_medium_fake_bank_alert | Fake debit alert + OTP share | Medium |
+| task_5_hard_malware_install | APK from unknown source + permissions | Hard |
+| task_6_fake_2fa_prompt | Fake Google 2FA SMS | Medium |
+| task_7_whatsapp_impersonation | Unknown number financial ask | Medium |
+| task_8_fake_app_update | Fake Flash Player APK | Hard |
+| task_9_none_all_benign | No threats — false-positive test | Medium |
+| task_10_ransomware | File encryption ransom demand | Hard |
+| task_11_distractor_overload | 5 events, high-noise distraction | Hard |
 
-## Episode Flow
+## Scoring (reward strictly in 0.01–0.99)
 
-```
-reset(task_id=...) → Observation
-  ↓ (optional step 1)
-step(ask | store | retrieve) → Updated Observation + extra_info
-  ↓ (step 2 / only step)
-step(final | warn | prioritize | ...) → Graded Observation + reward
-```
+| Component | Weight | Notes |
+|-----------|--------|-------|
+| `highest_priority_id` | 0.40 | Exact match on correct event ID |
+| `threat_type` | 0.25 | Exact match on threat category |
+| `threat_level` | ±0.08 | +0.08 correct, −0.08 wrong |
+| `two_line_advice` keyword | 0.07 | Any single threat-relevant keyword present |
+| `background_queue` | 0–0.20 | Partial credit; penalises false positives |
 
-Max 2 steps per episode. Only 1 intermediate action allowed.
+### Background Queue
+Agent must populate `background_queue` with IDs of events that are:
+- **Relevant** (not noise/spam)
+- **Not the primary threat**
+- **Deferred** — safe to process later when idle
 
-## Reward Function
-
-```
-reward = goal_alignment  * 0.30
-       + behavior        * 0.15
-       + security        * 0.20
-       + navigation      * 0.10
-       + memory          * 0.15   (store + retrieve + background_queue)
-       + query_efficiency* 0.10
-       − penalties
-```
-
-### Penalties
-| Violation | Penalty |
-|-----------|---------|
-| Ignore a critical-level threat | −0.50 |
-| Severity off by 3+ levels | −0.10 |
-| Unnecessary query (task didn't need ask) | −0.10 |
-| Promote distraction while in focus mode | −0.20 |
-| Wrong memory storage (irrelevant key) | −0.02 per item |
-
-All rewards clamped to (0.01, 0.99).
-
-## Action Space
-
-```json
-{
-  "action_type": "prioritize|ignore|redirect|assist_navigation|warn|store|retrieve|ask|final",
-  "target_id": null,
-  "threat_type": "none|phishing|malware|distraction|spam|financial_fraud",
-  "threat_level": "none|low|medium|high|critical",
-  "goal_alignment": "aligned|deviating|critical_conflict",
-  "memory_key": null,
-  "memory_value": null,
-  "query_type": "full_url|sender_details|full_message|ui_details",
-  "confidence": 0.95,
-  "reason_code": "SECURITY|PRODUCTIVITY|SAFETY|NAVIGATION|MEMORY",
-  "message": "Do not share OTP — active financial fraud attempt.",
-  "background_queue": [31, 62]
-}
-```
-
-## Observation Includes
-
-- `events` — phone notifications (with clipboard flag)
-- `user_goal` — what user is trying to accomplish
-- `user_profile_type` — security_sensitive | productivity_focused | casual
-- `device_context` — battery, network, DND
-- `app_context` — current app, focus mode
-- `temporal_context` — time, meeting status, deadline
-- `behavior_signals` — app_switch_rate, time_stuck, repeated_actions
-- `ui_context` — screen name, visible text, tappable elements
-- `message_context` — message text, sender reputation, link presence
-- `memory` — agent's accumulated memory for this episode
-- `extra_info` — populated after ask / retrieve actions
+Grading: `(hits / expected) × 0.20 − 0.05 × false_positives`. Queuing the threat itself is penalised.
