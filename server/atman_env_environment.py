@@ -1,8 +1,11 @@
-"""ATMAN Environment — context-aware mobile OS agent benchmark.
+"""ATMAN Environment v3 — context-aware mobile OS agent benchmark.
 
-Single-step episodes (reset → step → done=True + reward).
-All ATMAN features graded from the single terminal action.
-Reward strictly in (0.01, 0.99). Fully deterministic.
+v3 additions over v2:
+  - manipulation_type graded at 0.05 weight (goal weight reduced 0.20→0.15)
+  - confidence_primary calibration penalty
+  - reasoning_scratchpad field (ungraded, aids chain-of-thought)
+
+Single-step episodes. Reward strictly in (0.01, 0.99). Deterministic.
 """
 from typing import Dict, List, Optional
 from uuid import uuid4
@@ -16,7 +19,7 @@ except ImportError:
     from models import AtmanAction, AtmanObservation, PhoneEvent, UIElement, MemoryEntry
 
 
-# ── Advice keywords per threat type ───────────────────────────────
+# ── Advice keywords ────────────────────────────────────────────────
 _ADVICE_KEYWORDS: Dict[str, List[str]] = {
     "phishing":        ["phishing", "fake", "scam", "fraud", "suspicious", "avoid", "block", "ignore"],
     "malware":         ["malware", "virus", "apk", "install", "permission", "unsafe", "block", "deny"],
@@ -33,47 +36,27 @@ class _Task:
     def __init__(
         self,
         task_id: str,
-        # Events
         events: List[PhoneEvent],
-        # User context
         user_goal: str,
         user_profile_type: str,
-        # Device context
-        battery_level: int,
-        charging: bool,
-        network_type: str,
-        do_not_disturb: bool,
-        # App context
-        current_app: str,
-        focus_mode: bool,
-        # Temporal context
-        current_time: str,
-        in_meeting: bool,
-        deadline_hint: str,
-        # Behaviour signals
-        app_switch_rate: int,
-        time_stuck: int,
-        repeated_actions: int,
-        # UI context
-        screen_name: str,
-        visible_text: List[str],
-        ui_elements: List[UIElement],
-        # Message context
-        message_sender: str,
-        sender_reputation: str,
-        message_contains_link: bool,
-        # Initial memory agent can read
+        battery_level: int, charging: bool, network_type: str, do_not_disturb: bool,
+        current_app: str, focus_mode: bool,
+        current_time: str, in_meeting: bool, deadline_hint: str,
+        app_switch_rate: int, time_stuck: int, repeated_actions: int,
+        screen_name: str, visible_text: List[str], ui_elements: List[UIElement],
+        message_sender: str, sender_reputation: str, message_contains_link: bool,
         initial_memory: List[MemoryEntry],
-        # Expected outputs (grading oracles)
+        # Grading oracles
         expected_priority_id: int,
         expected_threat_type: str,
         expected_threat_level: str,
         expected_goal_alignment: str,
         expected_action_category: str,
-        expected_nav_target: Optional[int],     # None = no navigation needed
-        expected_memory_keys: List[str],        # keys agent MUST store
-        expected_retrieved_keys: List[str],     # initial_memory keys agent should reference
+        expected_nav_target: Optional[int],
+        expected_memory_keys: List[str],
+        expected_retrieved_keys: List[str],
         expected_background_queue: List[int],
+        expected_manipulation_type: str,      # [NEW v3]
     ):
         self.task_id = task_id
         self.events = events
@@ -107,13 +90,13 @@ class _Task:
         self.expected_memory_keys = expected_memory_keys
         self.expected_retrieved_keys = expected_retrieved_keys
         self.expected_background_queue = expected_background_queue
+        self.expected_manipulation_type = expected_manipulation_type
 
 
 # ── Task catalogue ─────────────────────────────────────────────────
 
 TASKS: Dict[str, _Task] = {
 
-    # ── T1: Security + goal alignment (easy) ───────────────────────
     "task_1_security_goal_alignment": _Task(
         task_id="task_1_security_goal_alignment",
         events=[
@@ -132,15 +115,14 @@ TASKS: Dict[str, _Task] = {
         initial_memory=[],
         expected_priority_id=2,
         expected_threat_type="phishing", expected_threat_level="critical",
-        expected_goal_alignment="deviating",   # threat deviates user from their actual goal
+        expected_goal_alignment="deviating",
         expected_action_category="warn",
         expected_nav_target=None,
-        expected_memory_keys=[],
-        expected_retrieved_keys=[],
-        expected_background_queue=[1],          # mom's message — defer, not discard
+        expected_memory_keys=[], expected_retrieved_keys=[],
+        expected_background_queue=[1],
+        expected_manipulation_type="fear_induction",     # "unlock account" = fear of losing access
     ),
 
-    # ── T2: Navigation — stuck on payment (medium) ─────────────────
     "task_2_navigation_stuck": _Task(
         task_id="task_2_navigation_stuck",
         events=[
@@ -166,13 +148,12 @@ TASKS: Dict[str, _Task] = {
         expected_threat_type="none", expected_threat_level="none",
         expected_goal_alignment="aligned",
         expected_action_category="assist_navigation",
-        expected_nav_target=102,               # change payment method — correct after 4 retries
-        expected_memory_keys=[],
-        expected_retrieved_keys=[],
+        expected_nav_target=102,
+        expected_memory_keys=[], expected_retrieved_keys=[],
         expected_background_queue=[],
+        expected_manipulation_type="none",
     ),
 
-    # ── T3: Memory store — save travel info (medium) ───────────────
     "task_3_memory_store": _Task(
         task_id="task_3_memory_store",
         events=[
@@ -194,12 +175,12 @@ TASKS: Dict[str, _Task] = {
         expected_goal_alignment="aligned",
         expected_action_category="no_action",
         expected_nav_target=None,
-        expected_memory_keys=["pnr", "train", "travel_date"],   # any subset accepted
+        expected_memory_keys=["pnr", "train", "travel_date"],
         expected_retrieved_keys=[],
-        expected_background_queue=[22],         # friend's rescheduling — relevant
+        expected_background_queue=[22],
+        expected_manipulation_type="none",
     ),
 
-    # ── T4: Phishing + truncated link (medium) ─────────────────────
     "task_4_phishing_truncated_link": _Task(
         task_id="task_4_phishing_truncated_link",
         events=[
@@ -218,15 +199,14 @@ TASKS: Dict[str, _Task] = {
         initial_memory=[],
         expected_priority_id=30,
         expected_threat_type="phishing", expected_threat_level="critical",
-        expected_goal_alignment="critical_conflict",  # attacker hijacking the goal itself
+        expected_goal_alignment="critical_conflict",
         expected_action_category="warn",
         expected_nav_target=None,
-        expected_memory_keys=[],
-        expected_retrieved_keys=[],
-        expected_background_queue=[31],         # dentist reminder — real, safe to defer
+        expected_memory_keys=[], expected_retrieved_keys=[],
+        expected_background_queue=[31],
+        expected_manipulation_type="goal_hijacking",     # attacker mimics SBI to exploit user's own goal
     ),
 
-    # ── T5: Focus mode — distraction penalty (medium) ─────────────
     "task_5_focus_distraction": _Task(
         task_id="task_5_focus_distraction",
         events=[
@@ -243,17 +223,16 @@ TASKS: Dict[str, _Task] = {
         screen_name="", visible_text=[], ui_elements=[],
         message_sender="", sender_reputation="", message_contains_link=False,
         initial_memory=[],
-        expected_priority_id=42,               # client email — highest value despite focus mode
+        expected_priority_id=42,
         expected_threat_type="distraction", expected_threat_level="medium",
-        expected_goal_alignment="deviating",    # YT/IG distract from goal
+        expected_goal_alignment="deviating",
         expected_action_category="redirect",
         expected_nav_target=None,
-        expected_memory_keys=[],
-        expected_retrieved_keys=[],
-        expected_background_queue=[42],         # client email still gets queued — review after deadline
+        expected_memory_keys=[], expected_retrieved_keys=[],
+        expected_background_queue=[42],
+        expected_manipulation_type="reward_lure",        # YT/IG offer dopamine reward to lure away
     ),
 
-    # ── T6: Financial fraud — memory + clipboard (hard) ────────────
     "task_6_financial_fraud_memory": _Task(
         task_id="task_6_financial_fraud_memory",
         events=[
@@ -271,20 +250,19 @@ TASKS: Dict[str, _Task] = {
         screen_name="", visible_text=[], ui_elements=[],
         message_sender="Unknown (+91-XXXXX)", sender_reputation="low", message_contains_link=False,
         initial_memory=[
-            MemoryEntry(key="refund_ref", value="REF-20240312-88821"),
+            MemoryEntry(key="refund_ref",          value="REF-20240312-88821"),
             MemoryEntry(key="official_sbi_number", value="1800-11-2211"),
         ],
         expected_priority_id=52,
         expected_threat_type="financial_fraud", expected_threat_level="critical",
-        expected_goal_alignment="critical_conflict",   # attacker exploits user's refund expectation
+        expected_goal_alignment="critical_conflict",
         expected_action_category="warn",
         expected_nav_target=None,
-        expected_memory_keys=[],
-        expected_retrieved_keys=["refund_ref", "official_sbi_number"],  # agent should cross-reference
-        expected_background_queue=[50],         # battery warning — real system event, defer
+        expected_memory_keys=[], expected_retrieved_keys=["refund_ref", "official_sbi_number"],
+        expected_background_queue=[50],
+        expected_manipulation_type="goal_hijacking",     # exploits user's real refund expectation
     ),
 
-    # ── T7: Phishing + stored domain cross-check (hard) ────────────
     "task_7_memory_domain_check": _Task(
         task_id="task_7_memory_domain_check",
         events=[
@@ -302,19 +280,18 @@ TASKS: Dict[str, _Task] = {
         message_sender="Unknown SMS", sender_reputation="low", message_contains_link=True,
         initial_memory=[
             MemoryEntry(key="official_hdfc_domain", value="netbanking.hdfcbank.com"),
-            MemoryEntry(key="last_login_device", value="Chrome on Android — trusted"),
+            MemoryEntry(key="last_login_device",    value="Chrome on Android — trusted"),
         ],
         expected_priority_id=61,
         expected_threat_type="phishing", expected_threat_level="critical",
-        expected_goal_alignment="critical_conflict",   # direct attack on current task
+        expected_goal_alignment="critical_conflict",
         expected_action_category="warn",
         expected_nav_target=None,
-        expected_memory_keys=[],
-        expected_retrieved_keys=["official_hdfc_domain"],  # compare stored vs message domain
-        expected_background_queue=[62],         # standup notes — real work, queue it
+        expected_memory_keys=[], expected_retrieved_keys=["official_hdfc_domain"],
+        expected_background_queue=[62],
+        expected_manipulation_type="authority_impersonation",  # fake HDFC domain
     ),
 
-    # ── T8: Multi-vector — malware + distraction (hard) ────────────
     "task_8_malware_multicontext": _Task(
         task_id="task_8_malware_multicontext",
         events=[
@@ -334,15 +311,14 @@ TASKS: Dict[str, _Task] = {
         initial_memory=[],
         expected_priority_id=71,
         expected_threat_type="malware", expected_threat_level="critical",
-        expected_goal_alignment="deviating",    # fake Netflix exploits user's actual goal
+        expected_goal_alignment="deviating",
         expected_action_category="warn",
         expected_nav_target=None,
-        expected_memory_keys=[],
-        expected_retrieved_keys=[],
-        expected_background_queue=[73],         # standup reminder — real, defer
+        expected_memory_keys=[], expected_retrieved_keys=[],
+        expected_background_queue=[73],
+        expected_manipulation_type="goal_hijacking",     # fake Netflix = user's own desire weaponised
     ),
 
-    # ── T9: Ransomware — high-noise (hard) ─────────────────────────
     "task_9_ransomware_high_noise": _Task(
         task_id="task_9_ransomware_high_noise",
         events=[
@@ -365,12 +341,11 @@ TASKS: Dict[str, _Task] = {
         expected_goal_alignment="aligned",
         expected_action_category="warn",
         expected_nav_target=None,
-        expected_memory_keys=[],
-        expected_retrieved_keys=[],
-        expected_background_queue=[80],         # lunch calendar — real, queue it
+        expected_memory_keys=[], expected_retrieved_keys=[],
+        expected_background_queue=[80],
+        expected_manipulation_type="urgency_pressure",   # countdown timer = artificial urgency
     ),
 
-    # ── T10: All-benign — false-positive guard (medium) ────────────
     "task_10_no_threat_baseline": _Task(
         task_id="task_10_no_threat_baseline",
         events=[
@@ -387,17 +362,16 @@ TASKS: Dict[str, _Task] = {
         screen_name="", visible_text=[], ui_elements=[],
         message_sender="", sender_reputation="", message_contains_link=False,
         initial_memory=[],
-        expected_priority_id=91,               # birthday reminder — highest value for goal
+        expected_priority_id=91,
         expected_threat_type="none", expected_threat_level="none",
         expected_goal_alignment="aligned",
         expected_action_category="no_action",
         expected_nav_target=None,
-        expected_memory_keys=[],
-        expected_retrieved_keys=[],
-        expected_background_queue=[90, 92],     # both are real, relevant events
+        expected_memory_keys=[], expected_retrieved_keys=[],
+        expected_background_queue=[90, 92],
+        expected_manipulation_type="none",
     ),
 
-    # ── T11: WhatsApp impersonation + deadline pressure (hard) ─────
     "task_11_impersonation_deadline": _Task(
         task_id="task_11_impersonation_deadline",
         events=[
@@ -419,9 +393,9 @@ TASKS: Dict[str, _Task] = {
         expected_goal_alignment="deviating",
         expected_action_category="warn",
         expected_nav_target=None,
-        expected_memory_keys=[],
-        expected_retrieved_keys=[],
-        expected_background_queue=[102],        # timesheet deadline — real and urgent, queue it
+        expected_memory_keys=[], expected_retrieved_keys=[],
+        expected_background_queue=[102],
+        expected_manipulation_type="trust_exploitation",  # pretends to be known contact "Rahul"
     ),
 }
 
@@ -429,22 +403,13 @@ TASKS: Dict[str, _Task] = {
 # ── Grader ─────────────────────────────────────────────────────────
 
 def _score_security(action: AtmanAction, task: _Task) -> float:
-    """
-    0.30 total:
-      priority_id  : 0.16
-      threat_type  : 0.09
-      threat_level : ±0.03
-      advice kw    : 0.02
-    """
+    """0.30: priority_id(0.16) + threat_type(0.09) + threat_level(±0.03) + advice_kw(0.02)"""
     score = 0.0
     if action.highest_priority_id == task.expected_priority_id:
         score += 0.16
     if action.threat_type == task.expected_threat_type:
         score += 0.09
-    if action.threat_level == task.expected_threat_level:
-        score += 0.03
-    else:
-        score -= 0.03
+    score += 0.03 if action.threat_level == task.expected_threat_level else -0.03
     keywords = _ADVICE_KEYWORDS.get(task.expected_threat_type, [])
     if any(kw in action.two_line_advice.lower() for kw in keywords):
         score += 0.02
@@ -452,123 +417,123 @@ def _score_security(action: AtmanAction, task: _Task) -> float:
 
 
 def _score_goal(action: AtmanAction, task: _Task) -> float:
-    """0.20 — goal alignment correctness (partial credit)."""
+    """0.15 (reduced from v2's 0.20 to make room for manipulation_type)."""
     if action.goal_alignment == task.expected_goal_alignment:
-        return 0.20
-    # Partial for adjacent misses
+        return 0.15
     adjacent = {
-        ("aligned", "deviating"): 0.08,
-        ("deviating", "aligned"): 0.08,
-        ("deviating", "critical_conflict"): 0.05,
-        ("critical_conflict", "deviating"): 0.05,
-        ("aligned", "critical_conflict"): 0.0,
-        ("critical_conflict", "aligned"): 0.0,
+        ("aligned",           "deviating"):          0.06,
+        ("deviating",         "aligned"):             0.06,
+        ("deviating",         "critical_conflict"):   0.04,
+        ("critical_conflict", "deviating"):           0.04,
+        ("aligned",           "critical_conflict"):   0.0,
+        ("critical_conflict", "aligned"):             0.0,
     }
     return adjacent.get((task.expected_goal_alignment, action.goal_alignment), 0.0)
 
 
 def _score_behavior(action: AtmanAction, task: _Task) -> float:
-    """0.15 — action_category match."""
+    """0.15: action_category match."""
     if action.action_category == task.expected_action_category:
         return 0.15
     close = {
-        ("warn", "prioritize"): 0.06,
-        ("prioritize", "warn"): 0.06,
-        ("assist_navigation", "redirect"): 0.06,
-        ("redirect", "assist_navigation"): 0.06,
-        ("no_action", "prioritize"): 0.04,
+        ("warn",              "prioritize"):          0.06,
+        ("prioritize",        "warn"):                0.06,
+        ("assist_navigation", "redirect"):            0.06,
+        ("redirect",          "assist_navigation"):   0.06,
+        ("no_action",         "prioritize"):          0.04,
     }
     return close.get((task.expected_action_category, action.action_category), 0.0)
 
 
 def _score_navigation(action: AtmanAction, task: _Task) -> float:
-    """0.10 — UI element targeting."""
+    """0.10: correct UI element targeted."""
     if task.expected_nav_target is None:
         return 0.10 if action.target_element_id is None else 0.02
     return 0.10 if action.target_element_id == task.expected_nav_target else 0.0
 
 
 def _score_memory(action: AtmanAction, task: _Task) -> float:
-    """
-    0.15 total:
-      memory_store quality  : 0.08
-      memory retrieval refs : 0.04  (inferred from two_line_advice mentioning memory values)
-      background_queue      : 0.03
-    """
+    """0.15: memory_store(0.08) + retrieval_refs(0.04) + background_queue(0.03)."""
     score = 0.0
 
-    # Memory store scoring
     stored = {e.key.lower() for e in action.memory_store}
     if task.expected_memory_keys:
-        expected = set(k.lower() for k in task.expected_memory_keys)
+        expected = {k.lower() for k in task.expected_memory_keys}
         hits = len(stored & expected)
         fps = len(stored - expected)
-        store_raw = (hits / len(expected)) * 0.08 - fps * 0.02
-        score += max(0.0, store_raw)
+        score += max(0.0, (hits / len(expected)) * 0.08 - fps * 0.02)
     else:
-        # Nothing should be stored — reward restraint
         score += 0.04 if not stored else 0.0
 
-    # Memory retrieval — agent should reference initial_memory values in advice
     if task.expected_retrieved_keys:
         mem_values = {e.value.lower() for e in task.initial_memory}
         advice_lower = action.two_line_advice.lower()
-        referenced = sum(1 for v in mem_values if any(word in advice_lower for word in v.split()))
-        ref_score = min(0.04, (referenced / max(len(task.expected_retrieved_keys), 1)) * 0.04)
-        score += ref_score
+        referenced = sum(1 for v in mem_values if any(w in advice_lower for w in v.split()))
+        score += min(0.04, (referenced / max(len(task.expected_retrieved_keys), 1)) * 0.04)
     else:
         score += 0.02
 
-    # Background queue scoring (from v3)
     expected_q = set(task.expected_background_queue)
     actual_q = set(action.background_queue)
+    actual_q.discard(task.expected_priority_id)
     if expected_q:
-        # Never queue the primary threat
-        actual_q.discard(task.expected_priority_id)
         hits_q = len(actual_q & expected_q)
         fps_q = len(actual_q - expected_q)
-        q_raw = (hits_q / len(expected_q)) * 0.03 - fps_q * 0.01
-        score += max(0.0, q_raw)
+        score += max(0.0, (hits_q / len(expected_q)) * 0.03 - fps_q * 0.01)
     else:
         score += 0.015 if not actual_q else 0.0
 
     return min(0.15, score)
 
 
-def _score_query_efficiency() -> float:
-    """
-    0.10 — reserved for query use in multi-step; since we are single-step,
-    this is awarded in full to all valid final actions (baseline reward).
-    """
+def _score_manipulation(action: AtmanAction, task: _Task) -> float:
+    """[NEW v3] 0.05: manipulation_type exact match."""
+    return 0.05 if action.manipulation_type == task.expected_manipulation_type else 0.0
+
+
+def _score_query_baseline() -> float:
+    """0.10: full baseline awarded to valid terminal actions."""
     return 0.10
 
 
 def _penalties(action: AtmanAction, task: _Task) -> float:
-    """Hard penalties applied after base score."""
+    """Hard penalties."""
     penalty = 0.0
+
     # Ignoring a critical threat
     if task.expected_threat_level == "critical" and action.action_category == "ignore":
         penalty += 0.50
+
     # Severity gap ≥ 3 levels
     order = ["none", "low", "medium", "high", "critical"]
     try:
-        exp_i = order.index(task.expected_threat_level)
-        act_i = order.index(action.threat_level)
-        if abs(exp_i - act_i) >= 3:
+        if abs(order.index(task.expected_threat_level) - order.index(action.threat_level)) >= 3:
             penalty += 0.10
     except ValueError:
         pass
-    # Promoting distraction while focus_mode is on
+
+    # Distraction promoted in focus mode
     if task.focus_mode and action.action_category == "prioritize" and action.threat_type == "distraction":
         penalty += 0.20
+
+    # [NEW v3] Calibration penalty: high confidence on wrong priority_id
+    if action.confidence_primary > 0.85 and action.highest_priority_id != task.expected_priority_id:
+        penalty += 0.04
+
     return penalty
 
 
 def _grade(action: AtmanAction, task: _Task) -> float:
     """
-    Reward = security(0.30) + goal(0.20) + behavior(0.15) +
-             navigation(0.10) + memory(0.15) + query(0.10) − penalties
-    Clamped strictly to (0.01, 0.99).
+    v3 reward weights (sum = 1.00):
+      security        0.30
+      goal_alignment  0.15  (was 0.20 in v2)
+      behavior        0.15
+      navigation      0.10
+      memory          0.15
+      manipulation    0.05  (new in v3)
+      query_baseline  0.10
+    Clamped to (0.01, 0.99).
     """
     base = (
         _score_security(action, task)
@@ -576,7 +541,8 @@ def _grade(action: AtmanAction, task: _Task) -> float:
         + _score_behavior(action, task)
         + _score_navigation(action, task)
         + _score_memory(action, task)
-        + _score_query_efficiency()
+        + _score_manipulation(action, task)
+        + _score_query_baseline()
     )
     return max(0.01, min(0.99, base - _penalties(action, task)))
 
@@ -584,10 +550,7 @@ def _grade(action: AtmanAction, task: _Task) -> float:
 # ── Environment ────────────────────────────────────────────────────
 
 class AtmanEnvironment(Environment):
-    """
-    ATMAN: Context-Aware Mobile OS Agent Benchmark.
-    Single-step episodes — same structure as IntelliNotify v3.
-    """
+    """ATMAN v3. Single-step, phase-2 compatible."""
     SUPPORTS_CONCURRENT_SESSIONS: bool = True
 
     def __init__(self):
@@ -596,12 +559,7 @@ class AtmanEnvironment(Environment):
         self._task: Optional[_Task] = None
         self._done = False
 
-    def _build_obs(
-        self,
-        done: bool,
-        reward: Optional[float] = None,
-        feedback: Optional[str] = None,
-    ) -> AtmanObservation:
+    def _build_obs(self, done: bool, reward=None, feedback=None) -> AtmanObservation:
         t = self._task
         return AtmanObservation(
             step_number=self._state.step_count,
@@ -611,50 +569,34 @@ class AtmanEnvironment(Environment):
             task_id=t.task_id,
             done=done,
             reward=reward,
-            # User context
             user_goal=t.user_goal,
             user_profile_type=t.user_profile_type,
-            # Device
             battery_level=t.battery_level,
             charging=t.charging,
             network_type=t.network_type,
             do_not_disturb=t.do_not_disturb,
-            # App
             current_app=t.current_app,
             focus_mode=t.focus_mode,
-            # Temporal
             current_time=t.current_time,
             in_meeting=t.in_meeting,
             deadline_hint=t.deadline_hint,
-            # Behaviour
             app_switch_rate=t.app_switch_rate,
             time_stuck=t.time_stuck,
             repeated_actions=t.repeated_actions,
-            # UI
             screen_name=t.screen_name,
             visible_text=t.visible_text,
             ui_elements=t.ui_elements,
-            # Message
             message_sender=t.message_sender,
             sender_reputation=t.sender_reputation,
             message_contains_link=t.message_contains_link,
-            # Memory
             initial_memory=t.initial_memory,
         )
 
-    def reset(
-        self,
-        seed: Optional[int] = None,
-        episode_id: Optional[str] = None,
-        task_id: Optional[str] = None,
-        task: Optional[str] = None,
-        **kwargs,
-    ) -> AtmanObservation:
+    def reset(self, seed=None, episode_id=None, task_id=None, task=None, **kwargs) -> AtmanObservation:
         chosen = task_id or task
         self._task = (
             TASKS.get(chosen, TASKS["task_1_security_goal_alignment"])
-            if chosen
-            else TASKS["task_1_security_goal_alignment"]
+            if chosen else TASKS["task_1_security_goal_alignment"]
         )
         self._done = False
         self._state = State(episode_id=episode_id or str(uuid4()), step_count=0)
