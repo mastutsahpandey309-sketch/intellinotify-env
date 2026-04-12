@@ -1,5 +1,5 @@
-"""ATMAN Environment."""
-from .client import AtmanEnv
-from .models import AtmanAction, AtmanObservation
+"""IntelliNotify Environment."""
+from .client import IntelliNotifyEnv
+from .models import IntelliNotifyAction, IntelliNotifyObservation
 
-__all__ = ["AtmanAction", "AtmanObservation", "AtmanEnv"]
+__all__ = ["IntelliNotifyAction", "IntelliNotifyObservation", "IntelliNotifyEnv"]

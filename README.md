@@ -1,59 +1,48 @@
 ---
-title: ATMAN
-emoji: 🛡️
-colorFrom: blue
-colorTo: purple
+title: IntelliNotify
+emoji: 🔔
+colorFrom: red
+colorTo: yellow
 sdk: docker
 pinned: false
 tags:
   - openenv
 ---
 
-# ATMAN — Context-Aware Mobile OS Agent Benchmark
+# IntelliNotify — OpenEnv Security Environment
 
-ATMAN (Adaptive Threat Management & Notification) is an OpenEnv-compatible benchmark for evaluating AI agents that act as a mobile OS context manager. The agent observes phone events, user goals, device state, and memory, then classifies threats and selects appropriate actions.
+Mobile OS notification security benchmark. Agent triages phone events to identify threats **and** schedules relevant-but-deferred events for background processing.
 
-## Tasks (8 total, easy → hard)
+## Tasks (11 total, easy → hard)
 
-| ID | Description | Steps | Difficulty |
-|----|-------------|-------|------------|
-| task_1_security_goal_alignment | Phishing SMS alongside benign notifications — warn & align | 1 | Easy |
-| task_2_navigation_stuck | Repeated UPI payment failure — guide user to correct button | 1 | Easy |
-| task_3_memory_store | Travel PNR arrives — store key details before replying | 2 | Medium |
-| task_4_ask_then_classify | Truncated bank link — query full URL then classify as phishing | 2 | Medium |
-| task_5_focus_distraction | Focus mode active — distraction notification should be deprioritised | 1 | Medium |
-| task_6_financial_fraud_complex | Suspicious refund request with UPI clipboard — query & classify | 2 | Hard |
-| task_7_memory_retrieve_and_act | OTP SMS + stored device-lock context — retrieve memory, then classify | 2 | Hard |
-| task_8_no_threat_baseline | All-benign notifications — false-positive guard, no action needed | 1 | Medium |
-
-## Action Space
-
-| `action_type` | When to use |
-|---------------|-------------|
-| `warn` | Threat detected, alert user |
-| `prioritize` | Surface important (non-threat) event |
-| `ignore` | Dismiss noise |
-| `redirect` | Route to correct app/screen |
-| `assist_navigation` | Guide stuck user to correct UI element |
-| `store` | Commit a key/value pair to episode memory (intermediate) |
-| `retrieve` | Read a memory key (intermediate) |
-| `ask` | Query hidden task data once (intermediate) |
-| `final` | Full terminal classification |
+| ID | Task | Difficulty |
+|----|------|------------|
+| task_1_easy_blatant_scam | Obvious prize scam SMS | Easy |
+| task_2_medium_productivity_vs_security | Phishing vs real work urgency | Medium |
+| task_3_hard_multi_vector | Clipboard hijack + OTP + browser | Hard |
+| task_4_medium_fake_bank_alert | Fake debit alert + OTP share | Medium |
+| task_5_hard_malware_install | APK from unknown source + permissions | Hard |
+| task_6_fake_2fa_prompt | Fake Google 2FA SMS | Medium |
+| task_7_whatsapp_impersonation | Unknown number financial ask | Medium |
+| task_8_fake_app_update | Fake Flash Player APK | Hard |
+| task_9_none_all_benign | No threats — false-positive test | Medium |
+| task_10_ransomware | File encryption ransom demand | Hard |
+| task_11_distractor_overload | 5 events, high-noise distraction | Hard |
 
 ## Scoring (reward strictly in 0.01–0.99)
 
-| Component | Max Weight | Notes |
-|-----------|-----------|-------|
-| Goal alignment | 0.30 | aligned / deviating / critical_conflict |
-| Behaviour match | 0.15 | Correct action_type selection |
-| Security classification | 0.20 | threat_type + threat_level accuracy |
-| Navigation targeting | 0.10 | Correct target_id when navigating |
-| Memory operations | 0.15 | Store / retrieve accuracy; penalises false positives |
-| Query efficiency | 0.10 | Reward asking when required; penalise unnecessary asks |
+| Component | Weight | Notes |
+|-----------|--------|-------|
+| `highest_priority_id` | 0.40 | Exact match on correct event ID |
+| `threat_type` | 0.25 | Exact match on threat category |
+| `threat_level` | ±0.08 | +0.08 correct, −0.08 wrong |
+| `two_line_advice` keyword | 0.07 | Any single threat-relevant keyword present |
+| `background_queue` | 0–0.20 | Partial credit; penalises false positives |
 
-All component scores are summed, penalties applied, then clamped to (0.01, 0.99).
+### Background Queue
+Agent must populate `background_queue` with IDs of events that are:
+- **Relevant** (not noise/spam)
+- **Not the primary threat**
+- **Deferred** — safe to process later when idle
 
-### Penalties
-- Ignoring a critical threat: -0.50
-- Threat level off by 3 or more severity steps: -0.10
-- Promoting distraction in focus mode: -0.20
+Grading: `(hits / expected) × 0.20 − 0.05 × false_positives`. Queuing the threat itself is penalised.
