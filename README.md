@@ -9,12 +9,12 @@ tags:
   - openenv
 ---
 
-# ATMAN — Context-Aware Mobile OS Agent Benchmark
+# ATMAN — IntelliNotify-An Env that fills the architecture needed between locally running LLMs and User extracted text processing specifically for Live Contextual Screen Assistance  
 
-ATMAN extends IntelliNotify v3 with full device/user/temporal context,
+IntelliNotify v3 with full device/user/temporal context,
 goal alignment grading, memory store/retrieve, UI navigation, and
 behavioural signal awareness — all in single-step episodes that are
-fully compatible with the OpenEnv phase 2 validator.
+fully compatible with the OpenEnv phase 2 validator,designed to intelligently triage, analyze, and respond to screen extracted text streams under constrained execution environment
 
 ## Tasks (11 total, easy → hard)
 
@@ -110,3 +110,5 @@ step(AtmanAction)  → AtmanObservation (done=True, reward=float)
 | screen_name, visible_text, ui_elements | UI context |
 | message_sender, sender_reputation, message_contains_link | Message context |
 | initial_memory | Pre-loaded key-value memory agent can reference |
+
+##Inspiration for this came from architecture need felt during desgin of ATMAN app-that uses locally Running Gemma 3 on android to produce live notification for user guidence. 
