@@ -1,4 +1,4 @@
-"""FastAPI application for the IntelliNotify Environment."""
+"""FastAPI application for the ATMAN Environment."""
 
 try:
     from openenv.core.env_server.http_server import create_app
@@ -6,17 +6,17 @@ except Exception as e:
     raise ImportError("openenv-core is required.") from e
 
 try:
-    from ..models import IntelliNotifyAction, IntelliNotifyObservation
-    from .intellinotify_env_environment import IntelliNotifyEnvironment
+    from ..models import AtmanAction, AtmanObservation
+    from .atman_env_environment import AtmanEnvironment
 except (ModuleNotFoundError, ImportError):
-    from models import IntelliNotifyAction, IntelliNotifyObservation
-    from server.intellinotify_env_environment import IntelliNotifyEnvironment
+    from models import AtmanAction, AtmanObservation
+    from server.atman_env_environment import AtmanEnvironment
 
 app = create_app(
-    IntelliNotifyEnvironment,
-    IntelliNotifyAction,
-    IntelliNotifyObservation,
-    env_name="intellinotify_env",
+    AtmanEnvironment,
+    AtmanAction,
+    AtmanObservation,
+    env_name="atman_env",
     max_concurrent_envs=1,
 )
 
@@ -33,6 +33,5 @@ if __name__ == "__main__":
     args = parser.parse_args()
     main(port=args.port)
 
-# Required by openenv validator
 if __name__ == "__main__":
     main()
