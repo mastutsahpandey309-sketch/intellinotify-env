@@ -11,81 +11,234 @@ except ImportError:
     from models import IntelliNotifyAction, IntelliNotifyObservation, PhoneEvent
 
 
-# ── Task definitions ───────────────────────────────────────────────
+# ── Advice keywords per threat type ───────────────────────────────
+# Single-word anchors that signal the agent understood the threat.
+# Scoring checks if ANY keyword appears in the lowercased advice string.
+
+_ADVICE_KEYWORDS: Dict[str, List[str]] = {
+    "phishing":        ["phishing", "fake", "scam", "fraud", "suspicious", "ignore", "avoid", "block"],
+    "malware":         ["malware", "virus", "apk", "install", "permission", "unsafe", "block", "deny"],
+    "financial_fraud": ["otp", "fraud", "share", "bank", "block", "report", "transaction", "suspicious"],
+    "spam":            ["spam", "scam", "fake", "ignore", "delete", "block", "prize"],
+    "distraction":     ["distraction", "ignore", "dismiss", "focus", "later", "postpone"],
+    "none":            ["safe", "normal", "ignore", "legitimate", "benign", "no threat"],
+}
+
+
+# ── Task definition ────────────────────────────────────────────────
 
 class _Task:
-    def __init__(self, task_id, events, expected_id, expected_level, expected_type):
+    def __init__(
+        self,
+        task_id: str,
+        events: List[PhoneEvent],
+        expected_id: int,
+        expected_level: str,
+        expected_type: str,
+        expected_queue: List[int],   # relevant-but-deferred event IDs
+    ):
         self.task_id = task_id
         self.events = events
         self.expected_id = expected_id
         self.expected_level = expected_level
         self.expected_type = expected_type
+        self.expected_queue = expected_queue   # what agent SHOULD defer
 
+
+# ── Task catalogue ─────────────────────────────────────────────────
 
 TASKS: Dict[str, _Task] = {
+
+    # ── Original 5 tasks (preserved) ──────────────────────────────
+
     "task_1_easy_blatant_scam": _Task(
         task_id="task_1_easy_blatant_scam",
         events=[
             PhoneEvent(id=1, source="WhatsApp", text="Mom: Call me when free."),
-            PhoneEvent(id=2, source="Uber", text="Your driver is 2 min away."),
-            PhoneEvent(id=3, source="SMS", text="CONGRATS!! Won iPhone 15. Claim: http://free-gifts-claim.xyz"),
+            PhoneEvent(id=2, source="Uber",     text="Your driver is 2 min away."),
+            PhoneEvent(id=3, source="SMS",      text="CONGRATS!! Won iPhone 15. Claim: http://free-gifts-claim.xyz"),
         ],
         expected_id=3, expected_level="high", expected_type="spam",
+        expected_queue=[1],   # mom's message — relevant, not urgent
     ),
+
     "task_2_medium_productivity_vs_security": _Task(
         task_id="task_2_medium_productivity_vs_security",
         events=[
             PhoneEvent(id=10, source="Calendar", text="Meeting: Q3 Planning in 15 mins"),
-            PhoneEvent(id=11, source="Gmail", text="Boss: URGENT! Need Q3 report NOW."),
-            PhoneEvent(id=12, source="SMS", text="Amazon: Account suspended. Verify: http://amazon-verify-account.com"),
+            PhoneEvent(id=11, source="Gmail",    text="Boss: URGENT! Need Q3 report NOW."),
+            PhoneEvent(id=12, source="SMS",      text="Amazon: Account suspended. Verify: http://amazon-verify-account.com"),
         ],
         expected_id=12, expected_level="critical", expected_type="phishing",
+        expected_queue=[10, 11],  # both work items are relevant, defer until threat handled
     ),
+
     "task_3_hard_multi_vector": _Task(
         task_id="task_3_hard_multi_vector",
         events=[
-            PhoneEvent(id=20, source="System", text="Battery at 15%. Turn on battery saver?"),
+            PhoneEvent(id=20, source="System",    text="Battery at 15%. Turn on battery saver?"),
             PhoneEvent(id=21, source="Clipboard", text="upi://pay?pa=fraudster@ybl", is_clipboard=True),
-            PhoneEvent(id=22, source="Chrome", text="sbi-secure-login.xyz/verify"),
-            PhoneEvent(id=23, source="SMS", text="YONO SBI: OTP for Rs 49,999 is 847291. Do not share."),
+            PhoneEvent(id=22, source="Chrome",    text="sbi-secure-login.xyz/verify"),
+            PhoneEvent(id=23, source="SMS",       text="YONO SBI: OTP for Rs 49,999 is 847291. Do not share."),
         ],
         expected_id=23, expected_level="critical", expected_type="financial_fraud",
+        expected_queue=[20],  # battery warning is a real system event worth noting
     ),
+
     "task_4_medium_fake_bank_alert": _Task(
         task_id="task_4_medium_fake_bank_alert",
         events=[
             PhoneEvent(id=30, source="Gmail", text="Newsletter: Top travel spots 2025."),
-            PhoneEvent(id=31, source="SMS", text="HDFC Bank: Rs 12,000 debited. Not you? Call 1800-XXX-FAKE."),
-            PhoneEvent(id=32, source="SMS", text="HDFC OTP 293847. Share with agent to reverse transaction."),
+            PhoneEvent(id=31, source="SMS",   text="HDFC Bank: Rs 12,000 debited. Not you? Call 1800-XXX-FAKE."),
+            PhoneEvent(id=32, source="SMS",   text="HDFC OTP 293847. Share with agent to reverse transaction."),
         ],
         expected_id=32, expected_level="critical", expected_type="phishing",
+        expected_queue=[],    # 31 is also suspicious; newsletter is noise — nothing clean to defer
     ),
+
     "task_5_hard_malware_install": _Task(
         task_id="task_5_hard_malware_install",
         events=[
             PhoneEvent(id=40, source="Chrome", text="Page loaded: free-movies-hd-apk.net/download"),
             PhoneEvent(id=41, source="System", text="Install: 'Netflix_Premium_Unlocked.apk' from unknown source."),
             PhoneEvent(id=42, source="System", text="App requesting Accessibility permissions."),
-            PhoneEvent(id=43, source="Gmail", text="Team standup in 10 minutes."),
+            PhoneEvent(id=43, source="Gmail",  text="Team standup in 10 minutes."),
         ],
         expected_id=41, expected_level="critical", expected_type="malware",
+        expected_queue=[43],  # standup reminder is real work — defer, not ignore
+    ),
+
+    # ── New tasks 6-11 ─────────────────────────────────────────────
+
+    "task_6_fake_2fa_prompt": _Task(
+        task_id="task_6_fake_2fa_prompt",
+        events=[
+            PhoneEvent(id=60, source="Spotify",  text="New release: Taylor Swift — The Tortured Poets Department"),
+            PhoneEvent(id=61, source="WhatsApp", text="Priya: Hey, free this weekend?"),
+            PhoneEvent(id=62, source="SMS",      text="Google: Your security code is 847291. Enter at google-security-verify.net to protect your account."),
+        ],
+        expected_id=62, expected_level="critical", expected_type="phishing",
+        expected_queue=[61],  # friend message — relevant, safe to read after
+    ),
+
+    "task_7_whatsapp_impersonation": _Task(
+        task_id="task_7_whatsapp_impersonation",
+        events=[
+            PhoneEvent(id=70, source="Instagram", text="@cricket_fan liked your post."),
+            PhoneEvent(id=71, source="WhatsApp",  text="Unknown (+91-XXXXX): Bro this is Rahul, new number. Emergency — send Rs 5000 on GPay, will return tonight."),
+            PhoneEvent(id=72, source="Gmail",     text="HR: Please submit your timesheet by 5 PM today."),
+        ],
+        expected_id=71, expected_level="high", expected_type="financial_fraud",
+        expected_queue=[72],  # timesheet deadline is real work — queue it
+    ),
+
+    "task_8_fake_app_update": _Task(
+        task_id="task_8_fake_app_update",
+        events=[
+            PhoneEvent(id=80, source="Play Store", text="Update available: WhatsApp 2.24.11 — bug fixes and performance improvements."),
+            PhoneEvent(id=81, source="SMS",        text="DHL: Your parcel is held. Re-schedule delivery: dhl-redelivery-india.xyz/track"),
+            PhoneEvent(id=82, source="Chrome",     text="SECURITY ALERT: Adobe Flash update required. Install now: flash-security-patch.net/update.apk"),
+        ],
+        expected_id=82, expected_level="critical", expected_type="malware",
+        expected_queue=[80],  # legitimate Play Store update worth doing later
+    ),
+
+    "task_9_none_all_benign": _Task(
+        task_id="task_9_none_all_benign",
+        events=[
+            PhoneEvent(id=90, source="Gmail",    text="Amazon: Your order #408-2937 has shipped. Expected delivery: Thursday."),
+            PhoneEvent(id=91, source="Calendar", text="Reminder: Doctor appointment tomorrow at 10:00 AM — City Hospital"),
+            PhoneEvent(id=92, source="WhatsApp", text="Dad: Happy birthday beta! Have a great day 🎂"),
+        ],
+        expected_id=91, expected_level="none", expected_type="none",
+        expected_queue=[90, 92],  # both are genuinely relevant and worth processing
+    ),
+
+    "task_10_ransomware": _Task(
+        task_id="task_10_ransomware",
+        events=[
+            PhoneEvent(id=100, source="Calendar", text="Team lunch today at 1:00 PM — Olive Garden"),
+            PhoneEvent(id=101, source="System",   text="YOUR FILES HAVE BEEN ENCRYPTED. Send 0.5 BTC to 1FakeWallet39x to recover. Timer: 23:47:12"),
+            PhoneEvent(id=102, source="SMS",      text="Netflix: Your subscription has expired. Renew now: netflix-payment-secure.xyz"),
+        ],
+        expected_id=101, expected_level="critical", expected_type="malware",
+        expected_queue=[100],  # calendar event is real and actionable after crisis
+    ),
+
+    "task_11_distractor_overload": _Task(
+        task_id="task_11_distractor_overload",
+        events=[
+            PhoneEvent(id=110, source="Swiggy",   text="Your order is out for delivery! Track it live."),
+            PhoneEvent(id=111, source="YouTube",  text="New video from MrBeast: 'I Survived 100 Days...'"),
+            PhoneEvent(id=112, source="SMS",      text="PayTM: Rs 1 credited to your wallet. Refer friends to earn more!"),
+            PhoneEvent(id=113, source="SMS",      text="SBI: Dear customer, your KYC expires today. Update immediately: sbi-kyc-update.net/verify or account will be blocked."),
+            PhoneEvent(id=114, source="Gmail",    text="Project brief from client — please review before EOD."),
+        ],
+        expected_id=113, expected_level="critical", expected_type="phishing",
+        expected_queue=[114],  # client email is real, relevant, should not be lost
     ),
 }
 
 
+# ── Grader ─────────────────────────────────────────────────────────
+
+def _score_advice(advice: str, threat_type: str) -> float:
+    """Return 0.07 if advice contains at least one keyword for the threat type, else 0."""
+    keywords = _ADVICE_KEYWORDS.get(threat_type, [])
+    advice_lower = advice.lower()
+    return 0.07 if any(kw in advice_lower for kw in keywords) else 0.0
+
+
+def _score_queue(queue: List[int], task: _Task) -> float:
+    """
+    Grade background_queue against task.expected_queue.
+
+    Scoring (max 0.20):
+      - Correct deferral:  hits / |expected| * 0.20
+      - False positives:   -0.05 per wrongly queued event
+      - Queuing the threat itself counts as a false positive
+    If no events should be queued, full 0.10 awarded for empty queue.
+    """
+    expected_set = set(task.expected_queue)
+    # Threat ID must never be queued — treat it as an automatic false positive
+    actual_set = set(q for q in queue if q != task.expected_id)
+
+    if not expected_set:
+        # Nothing relevant to defer — reward clean empty queue
+        return 0.10 if not actual_set else 0.0
+
+    hits = len(actual_set & expected_set)
+    false_positives = len(actual_set - expected_set)
+
+    raw = (hits / len(expected_set)) * 0.20 - (false_positives * 0.05)
+    return max(0.0, raw)
+
+
 def _grade(action: IntelliNotifyAction, task: _Task) -> float:
-    """Deterministic grader — score strictly in (0.01, 0.99)."""
+    """
+    Deterministic grader — score strictly in (0.01, 0.99).
+
+    Weight breakdown:
+      priority_id   : 0.40
+      threat_type   : 0.25
+      threat_level  : ±0.08
+      advice keyword: 0.07
+      background_q  : 0.20
+    """
     score = 0.0
+
     if action.highest_priority_id == task.expected_id:
-        score += 0.50
+        score += 0.40
     if action.threat_type == task.expected_type:
-        score += 0.30
+        score += 0.25
     if action.threat_level == task.expected_level:
-        score += 0.10
+        score += 0.08
     else:
-        score -= 0.10
-    if 10 <= len(action.two_line_advice) <= 150:
-        score += 0.10
+        score -= 0.08
+
+    score += _score_advice(action.two_line_advice, task.expected_type)
+    score += _score_queue(action.background_queue, task)
+
     return max(0.01, min(0.99, score))
 
 
@@ -94,7 +247,8 @@ def _grade(action: IntelliNotifyAction, task: _Task) -> float:
 class IntelliNotifyEnvironment(Environment):
     """
     Mobile OS notification security benchmark.
-    Agent triages phone events to identify threats.
+    Agent triages phone events to identify threats AND schedules
+    relevant-but-deferred events into a background queue.
     Each episode = one reset() + one step().
     """
     SUPPORTS_CONCURRENT_SESSIONS: bool = True
@@ -114,7 +268,11 @@ class IntelliNotifyEnvironment(Environment):
         **kwargs,
     ) -> IntelliNotifyObservation:
         chosen = task_id or task
-        self._task = TASKS.get(chosen, TASKS["task_1_easy_blatant_scam"]) if chosen else TASKS["task_1_easy_blatant_scam"]
+        self._task = (
+            TASKS.get(chosen, TASKS["task_1_easy_blatant_scam"])
+            if chosen
+            else TASKS["task_1_easy_blatant_scam"]
+        )
         self._done = False
         self._state = State(episode_id=episode_id or str(uuid4()), step_count=0)
 
