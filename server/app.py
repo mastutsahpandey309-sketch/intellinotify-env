@@ -33,5 +33,6 @@ if __name__ == "__main__":
     args = parser.parse_args()
     main(port=args.port)
 
+# Required by openenv validator
 if __name__ == "__main__":
     main()
