@@ -1,11 +1,11 @@
-"""IntelliNotify Environment Client."""
+"""ATMAN Environment Client."""
 from typing import Dict
 from openenv.core import EnvClient
 from openenv.core.client_types import StepResult
 from openenv.core.env_server.types import State
-from .models import IntelliNotifyAction, IntelliNotifyObservation
+from .models import AtmanAction, AtmanObservation
 
 
-class IntelliNotifyEnv(EnvClient[IntelliNotifyAction, IntelliNotifyObservation, State]):
-    def _step_payload(self, action: IntelliNotifyAction) -> Dict:
+class AtmanEnv(EnvClient[AtmanAction, AtmanObservation, State]):
+    def _step_payload(self, action: AtmanAction) -> Dict:
         return action.model_dump(exclude={"metadata"})

@@ -3,9 +3,9 @@ requires = ["setuptools>=45", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "openenv-intellinotify-env"
-version = "0.1.0"
-description = "IntelliNotify security notification triage environment"
+name = "openenv-atman-env"
+version = "1.0.0"
+description = "ATMAN: Context-Aware Mobile OS Agent Benchmark"
 requires-python = ">=3.10"
 dependencies = [
     "openenv-core[core]>=0.2.2",
@@ -14,9 +14,9 @@ dependencies = [
 ]
 
 [project.scripts]
-server = "intellinotify_env.server.app:main"
+server = "atman_env.server.app:main"
 
 [tool.setuptools]
 include-package-data = true
-packages = ["intellinotify_env", "intellinotify_env.server"]
-package-dir = { "intellinotify_env" = ".", "intellinotify_env.server" = "server" }
+packages = ["atman_env", "atman_env.server"]
+package-dir = { "atman_env" = ".", "atman_env.server" = "server" }

@@ -1,5 +1,15 @@
-"""IntelliNotify Environment."""
-from .client import IntelliNotifyEnv
-from .models import IntelliNotifyAction, IntelliNotifyObservation
+"""ATMAN Environment package."""
+from .models import (
+    AtmanAction, AtmanObservation,
+    PhoneEvent, DeviceContext, AppContext, TemporalContext,
+    BehaviorSignals, UIElement, UIContext, MessageContext,
+    HistoryContext, MemoryItem,
+)
+from .client import AtmanEnv
 
-__all__ = ["IntelliNotifyAction", "IntelliNotifyObservation", "IntelliNotifyEnv"]
+__all__ = [
+    "AtmanAction", "AtmanObservation", "AtmanEnv",
+    "PhoneEvent", "DeviceContext", "AppContext", "TemporalContext",
+    "BehaviorSignals", "UIElement", "UIContext", "MessageContext",
+    "HistoryContext", "MemoryItem",
+]
