@@ -1,48 +1,112 @@
 ---
-title: IntelliNotify
-emoji: 🔔
-colorFrom: red
-colorTo: yellow
+title: ATMAN
+emoji: 🧠
+colorFrom: indigo
+colorTo: cyan
 sdk: docker
 pinned: false
 tags:
   - openenv
 ---
 
-# IntelliNotify — OpenEnv Security Environment
+# ATMAN — Context-Aware Mobile OS Agent Benchmark
 
-Mobile OS notification security benchmark. Agent triages phone events to identify threats **and** schedules relevant-but-deferred events for background processing.
+ATMAN extends IntelliNotify v3 with full device/user/temporal context,
+goal alignment grading, memory store/retrieve, UI navigation, and
+behavioural signal awareness — all in single-step episodes that are
+fully compatible with the OpenEnv phase 2 validator.
 
 ## Tasks (11 total, easy → hard)
 
-| ID | Task | Difficulty |
-|----|------|------------|
-| task_1_easy_blatant_scam | Obvious prize scam SMS | Easy |
-| task_2_medium_productivity_vs_security | Phishing vs real work urgency | Medium |
-| task_3_hard_multi_vector | Clipboard hijack + OTP + browser | Hard |
-| task_4_medium_fake_bank_alert | Fake debit alert + OTP share | Medium |
-| task_5_hard_malware_install | APK from unknown source + permissions | Hard |
-| task_6_fake_2fa_prompt | Fake Google 2FA SMS | Medium |
-| task_7_whatsapp_impersonation | Unknown number financial ask | Medium |
-| task_8_fake_app_update | Fake Flash Player APK | Hard |
-| task_9_none_all_benign | No threats — false-positive test | Medium |
-| task_10_ransomware | File encryption ransom demand | Hard |
-| task_11_distractor_overload | 5 events, high-noise distraction | Hard |
+| ID | Task | Key Skill |
+|----|------|-----------|
+| task_1_security_goal_alignment | Phishing SMS while user has legit goal | Security + Goal |
+| task_2_navigation_stuck | User looping on failed GPay screen | Navigation |
+| task_3_memory_store | Save IRCTC PNR from SMS | Memory store |
+| task_4_phishing_truncated_link | Short URL phishing, security_sensitive user | Threat + Goal conflict |
+| task_5_focus_distraction | Distraction during deadline + client email | Focus + Priority |
+| task_6_financial_fraud_memory | OTP + clipboard + memory cross-reference | Multi-context + Memory |
+| task_7_memory_domain_check | Stored domain vs fake login site | Memory retrieval |
+| task_8_malware_multicontext | Fake APK while user wants Netflix | Malware + Goal |
+| task_9_ransomware_high_noise | Ransomware buried in 4 events | High-noise triage |
+| task_10_no_threat_baseline | All-benign — false-positive guard | None-threat |
+| task_11_impersonation_deadline | WhatsApp impersonation near deadline | Financial fraud |
 
-## Scoring (reward strictly in 0.01–0.99)
+## Reward Function (weights sum to 1.00)
 
-| Component | Weight | Notes |
-|-----------|--------|-------|
-| `highest_priority_id` | 0.40 | Exact match on correct event ID |
-| `threat_type` | 0.25 | Exact match on threat category |
-| `threat_level` | ±0.08 | +0.08 correct, −0.08 wrong |
-| `two_line_advice` keyword | 0.07 | Any single threat-relevant keyword present |
-| `background_queue` | 0–0.20 | Partial credit; penalises false positives |
+```
+reward = security(0.30) + goal_alignment(0.20) + action_category(0.15)
+       + navigation(0.10) + memory(0.15) + query_baseline(0.10)
+       − penalties
+```
 
-### Background Queue
-Agent must populate `background_queue` with IDs of events that are:
-- **Relevant** (not noise/spam)
-- **Not the primary threat**
-- **Deferred** — safe to process later when idle
+### Security (0.30)
+- priority_id exact match: +0.16
+- threat_type exact match: +0.09
+- threat_level exact match: ±0.03
+- advice keyword match: +0.02
 
-Grading: `(hits / expected) × 0.20 − 0.05 × false_positives`. Queuing the threat itself is penalised.
+### Goal Alignment (0.20)
+- Exact: 0.20 | Adjacent miss: 0.05–0.08 | Severe miss: 0.00
+
+### Behaviour / Action Category (0.15)
+- Exact: 0.15 | Close match: 0.06 | Wrong: 0.00
+
+### Navigation (0.10)
+- Correct UI element targeted: 0.10
+- No navigation needed + none given: 0.10
+
+### Memory (0.15)
+- memory_store: correct keys earn up to 0.08; false keys penalised −0.02 each
+- Memory retrieval (advice references initial_memory values): up to 0.04
+- background_queue: up to 0.03; false positives −0.01 each
+
+### Penalties
+| Violation | Penalty |
+|-----------|---------|
+| Ignore a critical-level threat | −0.50 |
+| Severity gap ≥ 3 levels | −0.10 |
+| Promote distraction in focus mode | −0.20 |
+| Irrelevant memory_store entry | −0.02 per item |
+
+All rewards clamped to (0.01, 0.99).
+
+## Episode Flow (single-step, phase-2 compatible)
+
+```
+reset(task_id=...) → AtmanObservation
+step(AtmanAction)  → AtmanObservation (done=True, reward=float)
+```
+
+## Action Schema
+
+```json
+{
+  "highest_priority_id": 52,
+  "threat_level": "critical",
+  "threat_type": "financial_fraud",
+  "two_line_advice": "OTP fraud — never share. Block sender immediately.",
+  "goal_alignment": "critical_conflict",
+  "action_category": "warn",
+  "target_element_id": null,
+  "memory_store": [],
+  "background_queue": [50],
+  "confidence": 0.97,
+  "reason_code": "SECURITY"
+}
+```
+
+## Observation Includes
+
+| Field | Description |
+|-------|-------------|
+| events | Phone notifications (with clipboard flag) |
+| user_goal | What the user is trying to accomplish |
+| user_profile_type | security_sensitive / productivity_focused / casual |
+| battery_level, charging, network_type, do_not_disturb | Device state |
+| current_app, focus_mode | App context |
+| current_time, in_meeting, deadline_hint | Temporal context |
+| app_switch_rate, time_stuck, repeated_actions | Behaviour signals |
+| screen_name, visible_text, ui_elements | UI context |
+| message_sender, sender_reputation, message_contains_link | Message context |
+| initial_memory | Pre-loaded key-value memory agent can reference |
