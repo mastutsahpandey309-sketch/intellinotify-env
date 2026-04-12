@@ -2,7 +2,7 @@
 title: ATMAN
 emoji: 🧠
 colorFrom: indigo
-colorTo: purple
+colorTo: cyan
 sdk: docker
 pinned: false
 tags:
