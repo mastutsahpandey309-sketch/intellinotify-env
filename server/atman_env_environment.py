@@ -638,7 +638,7 @@ class AtmanEnvironment(Environment):
         self._episode_memory = []
         self._state = State(episode_id=episode_id or str(uuid4()), step_count=0)
 
-        return self._build_obs(step=1, done=False, reward=0.5)
+        return self._build_obs(step=1, done=False)
 
     def step(self, action: AtmanAction) -> AtmanObservation:  # type: ignore[override]
         if self._task is None or self._done:
@@ -658,7 +658,6 @@ class AtmanEnvironment(Environment):
                     step=step,
                     feedback="Only one query allowed per episode.",
                     done=False,
-                    reward=0.5,
                 )
             self._asked = True
             qt = action.query_type or "full_url"
@@ -668,7 +667,6 @@ class AtmanEnvironment(Environment):
                 feedback=f"Query answered ({qt}).",
                 extra_info=info,
                 done=False,
-                reward=0.5,
             )
 
         # ── Intermediate: store ────────────────────────────────────
@@ -681,7 +679,7 @@ class AtmanEnvironment(Environment):
                 feedback = f"Stored '{action.memory_key}'."
             else:
                 feedback = "store requires memory_key and memory_value."
-            return self._build_obs(step=step + 1, feedback=feedback, done=False, reward=0.5)
+            return self._build_obs(step=step + 1, feedback=feedback, done=False)
 
         # ── Intermediate: retrieve ─────────────────────────────────
         if action.action_type == "retrieve" and step < self._task.max_steps:
@@ -690,8 +688,8 @@ class AtmanEnvironment(Environment):
                 all_mem = {m.key: m.value for m in (self._task.initial_memory + self._episode_memory)}
                 val = all_mem.get(action.memory_key, "Key not found in memory.")
                 feedback = f"Retrieved '{action.memory_key}'."
-                return self._build_obs(step=step + 1, feedback=feedback, extra_info=val, done=False, reward=0.5)
-            return self._build_obs(step=step + 1, feedback="retrieve requires memory_key.", done=False, reward=0.5)
+                return self._build_obs(step=step + 1, feedback=feedback, extra_info=val, done=False)
+            return self._build_obs(step=step + 1, feedback="retrieve requires memory_key.", done=False)
 
         # ── Terminal: grade ────────────────────────────────────────
         score = _grade(
