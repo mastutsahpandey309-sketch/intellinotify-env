@@ -11,7 +11,7 @@ tags:
 
 # ATMAN — IntelliNotify-An Env that fills the architecture needed between locally running LLMs and User extracted text processing specifically for Live Contextual Screen Assistance  
 
-IntelliNotify v3 with full device/user/temporal context,
+IntelliNotify v43 with full device/user/temporal context,
 goal alignment grading, memory store/retrieve, UI navigation, and
 behavioural signal awareness — all in single-step episodes that are
 fully compatible with the OpenEnv phase 2 validator,designed to intelligently triage, analyze, and respond to screen extracted text streams under constrained execution environment
