@@ -16,7 +16,17 @@ class IntelliNotifyAction(Action):
     highest_priority_id: int = Field(..., description="ID of most critical event")
     threat_level: Literal["none", "low", "medium", "high", "critical"]
     threat_type: Literal["none", "phishing", "malware", "distraction", "spam", "financial_fraud"]
-    two_line_advice: str = Field(..., description="Advice under 150 chars")
+    two_line_advice: str = Field(
+        ...,
+        description="Advice under 150 chars — must contain a threat-relevant warning keyword"
+    )
+    background_queue: List[int] = Field(
+        default_factory=list,
+        description=(
+            "IDs of lower-priority but relevant events skipped due to higher-priority content, "
+            "to be processed later in background. Exclude the top threat and pure noise."
+        )
+    )
 
 
 class IntelliNotifyObservation(Observation):
